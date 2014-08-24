@@ -36,8 +36,20 @@
 #include <SDL_getenv.h>
 #include "main.h"
 
+#ifdef _WII
+#include <ogcsys.h>
+#include <fat.h>
+
+SDL_main (int argc, char *argv[])
+#else
 #undef main
-main () {
+main ()
+#endif
+        {
+#ifdef _WII
+  /* enable file system access */
+  fatInitDefault();
+#endif
 
   /* Variables */
   SDL_Surface *pantalla = NULL;
@@ -84,6 +96,14 @@ main () {
   exit(0);
 }
 
+#ifdef JOYSTICK_SUPPORT
+void cleanup_sdl_joystick () {
+  if (SDL_NumJoysticks() > 0)
+    SDL_JoystickClose(0);
+  SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
+}
+#endif
+
 void iniciar_sdl () {
 
 	/* Centrar ventana */
@@ -95,13 +115,28 @@ void iniciar_sdl () {
   }
   atexit(SDL_Quit);
 
+#ifdef JOYSTICK_SUPPORT
+  /* Initialize the joystick subsystem */
+  SDL_InitSubSystem(SDL_INIT_JOYSTICK);
+  if (SDL_NumJoysticks() > 0)
+    SDL_JoystickOpen(0);
+  SDL_JoystickEventState(SDL_ENABLE);
+  atexit(cleanup_sdl_joystick);
+#endif
+
   if (TTF_Init() < 0) {
 	printf("No se puede inicializar SDL_ttf: %s\n",SDL_GetError());
 	exit(1);
   }
   atexit(TTF_Quit);
 
-  if (Mix_OpenAudio (44100, AUDIO_S16, 1, 4096)) {
+#ifdef _WII
+  #define AUDIO_FREQ 32000
+#else
+  #define AUDIO_FREQ 44100
+#endif
+
+  if (Mix_OpenAudio (AUDIO_FREQ, AUDIO_S16, 1, 4096)) {
 	printf("No se pudo inicializar SDL_Mixer %s\n",Mix_GetError());
 	exit(1);
   }
@@ -1222,6 +1257,7 @@ void tecladoj (struct protagonista *jean, int *tecla) {
    while (SDL_PollEvent(&evento)) {
 		if (evento.type == SDL_QUIT)
 	   	exit(0);
+#ifndef JOYSTICK_SUPPORT
 		if (evento.type == SDL_KEYDOWN) {
 			if (evento.key.keysym.sym == KEY_JUMP) {
 				if ((jean->pulsa[0] == 0) && (jean->salto == 0) && (jean->agachado == 0))
@@ -1265,7 +1301,52 @@ void tecladoj (struct protagonista *jean, int *tecla) {
 			if (evento.key.keysym.sym == SDLK_RIGHT)
 					jean->pulsa[3] = 0;
 		}
+#endif
+#ifdef JOYSTICK_SUPPORT
+		if (evento.type == SDL_JOYBUTTONDOWN) {
+			if (evento.jbutton.button == JOY_JUMP) {
+				if ((jean->pulsa[0] == 0) && (jean->salto == 0) && (jean->agachado == 0))
+					jean->salto = 1;
+			}
+			if (evento.jbutton.button == JOY_GRAPHICS)
+				*tecla = 9;
+			if (evento.jbutton.button == JOY_END)
+				exit(0);
+		}
 
+		if (evento.type == SDL_JOYBUTTONUP) {
+			if (evento.jbutton.button == JOY_JUMP)
+				jean->pulsa[0] = 0;
+		}
+
+		if (evento.type == SDL_JOYHATMOTION) {
+			if (evento.jhat.value & SDL_HAT_DOWN) {
+				if ((jean->pulsa[1] == 0) && (jean->salto == 0)) {
+					jean->pulsa[1] = 1;
+					jean->agachado = 1;
+				}
+			} else {
+				jean->pulsa[1] = 0;
+				jean->agachado = 0;
+			}
+			if (evento.jhat.value & SDL_HAT_LEFT) {
+				if (jean->pulsa[2] == 0) {
+					jean->pulsa[2] = 1;
+					jean->pulsa[3] = 0;
+				}
+			} else {
+				jean->pulsa[2] = 0;
+			}
+			if (evento.jhat.value & SDL_HAT_RIGHT) {
+				if (jean->pulsa[3] == 0) {
+					jean->pulsa[3] = 1;
+					jean->pulsa[2] = 0;
+				}
+			} else {
+				jean->pulsa[3] = 0;
+			}
+		}
+#endif
 	}
 
 }
@@ -1278,6 +1359,7 @@ void teclado (int *tecla, int fase) {
    while (SDL_PollEvent(&evento)) {
 		if (evento.type == SDL_QUIT)
 	   	exit(0);
+#ifndef JOYSTICK_SUPPORT
    	if (evento.type == SDL_KEYDOWN) {
 	   	if (evento.key.keysym.sym == KEY_INFO) {
       		if (fase == 1)
@@ -1292,6 +1374,21 @@ void teclado (int *tecla, int fase) {
 			if (evento.key.keysym.sym == KEY_START)
 				*tecla = 5;
 		}
+#endif
+#ifdef JOYSTICK_SUPPORT
+		if (evento.type == SDL_JOYBUTTONDOWN) {
+			if (evento.jbutton.button == JOY_INFO) {
+				if (fase == 1)
+					*tecla = 7;
+			}
+			if (evento.jbutton.button == JOY_END)
+				exit(0);
+			if (evento.jbutton.button == JOY_GRAPHICS)
+				*tecla = 9;
+			if (evento.jbutton.button == JOY_START)
+				*tecla = 5;
+		}
+#endif
 	}
 
 }
@@ -1301,11 +1398,23 @@ void tecladop (int *teclap) {
 	SDL_Event evento;
 
 	while (SDL_PollEvent(&evento)) {
+#ifndef JOYSTICK_SUPPORT
 		if (evento.type == SDL_KEYDOWN) {
 			if ((evento.key.keysym.sym == KEY_START) ||
 					(evento.key.keysym.sym == SDLK_LEFT) || (evento.key.keysym.sym == SDLK_RIGHT))
 				*teclap = 1;
 		}
+#endif
+#ifdef JOYSTICK_SUPPORT
+		if (evento.type == SDL_JOYBUTTONDOWN) {
+			if (evento.jbutton.button == JOY_START)
+				*teclap = 1;
+		}
+		if (evento.type == SDL_JOYHATMOTION) {
+			if ((evento.jhat.value & SDL_HAT_LEFT) || (evento.jhat.value & SDL_HAT_RIGHT))
+				*teclap = 1;
+		}
+#endif
 	}
 
 }

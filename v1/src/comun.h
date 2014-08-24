@@ -3,7 +3,7 @@
 #ifndef _COMUN_H_
 #define _COMUN_H_
 
-#if defined(_OPENPANDORA) || defined (_GCW_ZERO)
+#if defined(_OPENPANDORA) || defined (_GCW_ZERO) || defined (_WII)
 /* La versión para OpenPandora usa rutas relativas */
 #define _RUTAS_RELATIVAS
 /* La versión para OpenPandora renderiza internamente a 320x240 */
@@ -148,6 +148,16 @@
   #define KEY_START                SDLK_RETURN
   #define KEY_GRAPHICS             SDLK_LALT
   #define KEY_INFO                 SDLK_SPACE
+
+#elif defined(_WII)
+  #undef RUTA_GRA_INTRO
+  #define RUTA_GRA_INTRO           "graphics/intro-wii.png"
+  #define JOYSTICK_SUPPORT
+  #define JOY_JUMP                 3 /* 2    */
+  #define JOY_START                5 /* +    */
+  #define JOY_GRAPHICS             4 /* -    */
+  #define JOY_INFO                 0 /* A    */
+  #define JOY_END                  6 /* HOME */
 #else
   #define KEY_JUMP                 SDLK_UP
   #define KEY_START                SDLK_SPACE
